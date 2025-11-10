@@ -1,70 +1,57 @@
 import mongoose from 'mongoose';
+import { Plantao } from '../models/plantao_model.js';
 
-// contador local para gerar IDs sequenciais
-let contadorAceite = 1;
+// contador sequencial simples
+let contadorAceita = 1;
 
 const aceitaPlantaoSchema = new mongoose.Schema({
-  aceite_id: {
+  aceita_id: {
     type: Number,
     unique: true,
-    default: () => contadorAceite++, // gera IDs automáticos
+    default: () => contadorAceita++,
   },
+
   plantao_id: {
-    type: String,
-    ref: 'Plantao',
+    type: Number,
     required: [true, 'O campo plantao_id é obrigatório.'],
-    trim: true,
+    validate: {
+      validator: async function (valor) {
+        const existe = await Plantao.findOne({ plantao_id: valor });
+        return !!existe;
+      },
+      message: 'O plantão informado não existe.',
+    },
   },
-  medico_id: {
-    type: String,
-    ref: 'Usuario', // Médico vem da coleção de usuários
-    required: [true, 'O campo medico_id é obrigatório.'],
-    trim: true,
-  },
-  dia: {
-    type: String,
-    trim: true, // ❌ não é mais obrigatório
-    default: null,
-  },
-  horario_inicio: {
-    type: String,
-    trim: true, // ❌ não é mais obrigatório
-    default: null,
-  },
-  horario_final: {
-    type: String,
-    trim: true, // ❌ não é mais obrigatório
-    default: null,
-  },
+
+  // esses virão do Plantao automaticamente
+  dia: { type: String },
+  horario_inicio: { type: String },
+  horario_final: { type: String },
+  hospital_id: { type: String },
+
   status: {
     type: String,
-    enum: ['PENDENTE', 'APROVADO', 'REPROVADO', 'CANCELADO'],
+    enum: ['PENDENTE', 'APROVADO', 'RECUSADO', 'CANCELADO'],
     default: 'PENDENTE',
   },
+
   motivo_rejeicao: {
     type: String,
     trim: true,
-    maxlength: 1000,
-    default: null,
+    default: '',
   },
 }, {
   timestamps: true,
   versionKey: false,
 });
 
-// garante IDs incrementais mesmo após reiniciar o servidor
+// garante incremento estável
 aceitaPlantaoSchema.pre('save', async function (next) {
   if (this.isNew) {
-    const ultimo = await AceitaPlantao.findOne().sort({ aceite_id: -1 });
-    this.aceite_id = ultimo ? ultimo.aceite_id + 1 : 1;
+    const ultimo = await mongoose.model('Aceita').findOne().sort({ aceita_id: -1 });
+    this.aceita_id = ultimo ? ultimo.aceita_id + 1 : 1;
   }
   next();
 });
 
-// índices úteis
-aceitaPlantaoSchema.index({ plantao_id: 1 });
-aceitaPlantaoSchema.index({ medico_id: 1 });
-aceitaPlantaoSchema.index({ status: 1 });
-
-const AceitaPlantao = mongoose.model('AceitaPlantao', aceitaPlantaoSchema);
-export default AceitaPlantao;
+export const Aceita = mongoose.model('Aceita', aceitaPlantaoSchema);

@@ -1,24 +1,36 @@
-// login do médico
+// src/middlewares/autenticacao_medico.js
 import jwt from 'jsonwebtoken';
 import { Medico } from '../models/medico_model.js';
-import bcrypt from 'bcrypt';
 
-export async function loginMedico(req, res) {
-  const { CRM, senha } = req.body;
-  const medico = await Medico.findOne({ CRM });
-  if (!medico) return res.status(404).json({ error: 'Médico não encontrado.' });
+export async function autenticarMedico(req, res, next) {
+  try {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader)
+      return res.status(401).json({ error: 'Token não fornecido.' });
 
-  const senhaValida = await bcrypt.compare(senha, medico.senha);
-  if (!senhaValida) return res.status(401).json({ error: 'Senha incorreta.' });
+    const token = authHeader.split(' ')[1];
+    if (!token)
+      return res.status(401).json({ error: 'Token inválido.' });
 
-  const token = jwt.sign(
-    {
-      usuario_id: medico.medico_id, // ⚠️ Número, não string
-      papel: medico.papel
-    },
-    process.env.JWT_SECRET || 'minha_chave_secreta',
-    { expiresIn: '1h' }
-  );
+    // Verifica token com chave JWT padrão do sistema
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-  return res.status(200).json({ token });
+    // Busca o médico pelo ID contido no token
+    const medico = await Medico.findOne({ medico_id: decoded.medico_id });
+    if (!medico)
+      return res.status(401).json({ error: 'Médico inválido.' });
+
+    // Armazena no req para uso posterior
+    req.medico = {
+      medico_id: medico.medico_id,
+      crm: medico.crm,
+      hospital_id: medico.hospital_id,
+      nome: medico.nome
+    };
+
+    next();
+  } catch (err) {
+    console.error('Erro na autenticação do médico:', err);
+    return res.status(401).json({ error: 'Falha na autenticação do médico.' });
+  }
 }
