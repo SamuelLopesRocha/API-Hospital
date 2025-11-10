@@ -1,127 +1,169 @@
-import { AceitaPlantao } from '../models/aceita_plantao_model.js';
+import AceitaPlantao from '../models/aceita_plantao_model.js';
+import { Plantao } from '../models/plantao_model.js';
+import { registrarLog } from '../utils/log_auditoria_helper.js';
+
+const STATUS_PERMITIDOS = ['PENDENTE', 'APROVADO', 'REPROVADO', 'CANCELADO'];
 
 /**
- * Criar um novo aceite de plantão
+ * MÉDICO cria um aceite de plantão
  */
-export const createAceitePlantao = async (req, res) => {
+export async function createAceitePlantao(req, res) {
   try {
-    const { aceite_id, plantao_id, profissional_id, status } = req.body;
-
-    if (!aceite_id || !plantao_id || !profissional_id) {
-      return res.status(400).json({ message: 'Campos obrigatórios não preenchidos.' });
+    // ✅ apenas médico autenticado pode criar
+    if (!req.medico || req.medico.papel !== 'MEDICO') {
+      return res.status(403).json({ message: 'Apenas médicos podem aceitar plantões.' });
     }
 
-    const existente = await AceitaPlantao.findOne({ aceite_id });
-    if (existente) {
-      return res.status(409).json({ message: 'Já existe um aceite_plantao com este ID.' });
+    const { plantao_id } = req.body;
+
+    if (!plantao_id) {
+      return res.status(400).json({ message: 'O campo plantao_id é obrigatório.' });
     }
+
+    const plantao = await Plantao.findOne({ plantao_id });
+    if (!plantao) {
+      return res.status(404).json({ message: 'Plantão não encontrado.' });
+    }
+
+    const ultimo = await AceitaPlantao.findOne().sort({ aceite_id: -1 });
+    const proximoId = ultimo ? ultimo.aceite_id + 1 : 1;
 
     const novoAceite = await AceitaPlantao.create({
-      aceite_id,
-      plantao_id,
-      profissional_id,
-      status,
+      aceite_id: proximoId,
+      plantao_id: plantao_id,
+      medico_id: req.medico.medico_id, // ✅ agora correto
+      dia: plantao.dia,
+      horario_inicio: plantao.horario_inicio,
+      horario_final: plantao.horario_final,
+      status: 'PENDENTE',
+      motivo_rejeicao: null,
     });
+
+    await registrarLog(req, 'AceitaPlantao', novoAceite.aceite_id, 'CREATE', null, novoAceite.toJSON());
 
     return res.status(201).json({
-      message: '✅ aceite_plantao criado com sucesso!',
-      data: novoAceite,
+      message: 'Aceite de plantão criado com sucesso.',
+      aceite: novoAceite,
     });
-  } catch (error) {
-    console.error('Erro ao criar aceite_plantao:', error);
-    return res.status(500).json({ message: 'Erro interno ao criar aceite_plantao.' });
+  } catch (err) {
+    console.error('Erro ao criar aceite de plantão:', err);
+    return res.status(500).json({ message: 'Erro interno ao criar aceite de plantão.' });
   }
-};
+}
+
 
 /**
- * Listar todos os aceites de plantão
+ * LIST – listar todos
  */
-export const listAceitePlantoes = async (req, res) => {
+export async function listAceitePlantoes(req, res) {
   try {
-    const aceites = await AceitaPlantao.find();
-
-    if (aceites.length === 0) {
-      return res.status(200).json({ message: 'Nenhum aceite_plantao encontrado.', data: [] });
-    }
-
-    return res.status(200).json({
-      message: 'Lista de aceites_plantao recuperada com sucesso.',
-      total: aceites.length,
-      data: aceites,
-    });
-  } catch (error) {
-    console.error('Erro ao listar aceites_plantao:', error);
-    return res.status(500).json({ message: 'Erro interno ao listar aceites_plantao.' });
+    const aceites = await AceitaPlantao.find().sort({ createdAt: -1 });
+    return res.status(200).json(aceites);
+  } catch (err) {
+    console.error('Erro ao listar aceites de plantão:', err);
+    return res.status(500).json({ message: 'Erro interno ao listar aceites.' });
   }
-};
+}
 
 /**
- * Buscar um aceite específico por ID (do MongoDB)
+ * GET por ID
  */
-export const getAceitePlantaoById = async (req, res) => {
+export async function getAceitePlantaoById(req, res) {
   try {
-    const { id } = req.params;
-    const aceite = await AceitaPlantao.findById(id);
+    const id = req.params.id;
+    let aceite = null;
 
-    if (!aceite) {
-      return res.status(404).json({ message: 'aceite_plantao não encontrado.' });
+    if (!Number.isNaN(Number(id))) {
+      aceite = await AceitaPlantao.findOne({ aceite_id: Number(id) });
+    } else {
+      aceite = await AceitaPlantao.findById(id);
     }
 
-    return res.status(200).json({
-      message: 'aceite_plantao encontrado com sucesso.',
-      data: aceite,
-    });
-  } catch (error) {
-    console.error('Erro ao buscar aceite_plantao:', error);
-    return res.status(500).json({ message: 'Erro interno ao buscar aceite_plantao.' });
+    if (!aceite) return res.status(404).json({ message: 'Aceite não encontrado.' });
+    return res.status(200).json(aceite);
+  } catch (err) {
+    console.error('Erro ao buscar aceite de plantão:', err);
+    return res.status(500).json({ message: 'Erro interno ao buscar aceite.' });
   }
-};
+}
 
 /**
- * Atualizar um aceite de plantão
+ * UPDATE – apenas GESTOR pode editar (status e motivo_rejeicao)
  */
-export const updateAceitePlantao = async (req, res) => {
+export async function updateAceitePlantao(req, res) {
   try {
-    const { id } = req.params;
-    const dadosAtualizados = req.body;
-
-    const aceite = await AceitaPlantao.findByIdAndUpdate(id, dadosAtualizados, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!aceite) {
-      return res.status(404).json({ message: 'aceite_plantao não encontrado para atualização.' });
+    // ✅ apenas gestor autenticado pode alterar
+    if (!req.user || req.user.papel !== 'GESTOR') {
+      return res.status(403).json({ message: 'Apenas gestores podem alterar aceites de plantão.' });
     }
 
+    const { status, motivo_rejeicao } = req.body;
+    const update = {};
+
+    // ✅ só permite alterar status e motivo_rejeicao
+    if (status) {
+      if (!STATUS_PERMITIDOS.includes(status)) {
+        return res.status(400).json({
+          message: `Status inválido. Use um dos: ${STATUS_PERMITIDOS.join(', ')}.`,
+        });
+      }
+      update.status = status;
+    }
+
+    if (motivo_rejeicao !== undefined) update.motivo_rejeicao = motivo_rejeicao;
+
+    let aceiteAtualizado = null;
+    if (!Number.isNaN(Number(req.params.id))) {
+      aceiteAtualizado = await AceitaPlantao.findOneAndUpdate(
+        { aceite_id: Number(req.params.id) },
+        update,
+        { new: true, runValidators: true }
+      );
+    }
+    if (!aceiteAtualizado) {
+      aceiteAtualizado = await AceitaPlantao.findByIdAndUpdate(req.params.id, update, {
+        new: true,
+        runValidators: true,
+      });
+    }
+
+    if (!aceiteAtualizado) {
+      return res.status(404).json({ message: 'Aceite não encontrado.' });
+    }
+
+    // ✅ log de atualização
+    await registrarLog(req, 'AceitaPlantao', aceiteAtualizado.aceite_id, 'UPDATE', null, aceiteAtualizado.toJSON());
+
     return res.status(200).json({
-      message: '✅ aceite_plantao atualizado com sucesso!',
-      data: aceite,
+      message: 'Aceite atualizado com sucesso.',
+      aceite: aceiteAtualizado,
     });
-  } catch (error) {
-    console.error('Erro ao atualizar aceite_plantao:', error);
-    return res.status(500).json({ message: 'Erro interno ao atualizar aceite_plantao.' });
+  } catch (err) {
+    console.error('Erro ao atualizar aceite de plantão:', err);
+    return res.status(500).json({ message: 'Erro interno ao atualizar aceite.' });
   }
-};
+}
 
 /**
- * Deletar um aceite de plantão
+ * DELETE
  */
-export const deleteAceitePlantao = async (req, res) => {
+export async function deleteAceitePlantao(req, res) {
   try {
-    const { id } = req.params;
-    const aceite = await AceitaPlantao.findByIdAndDelete(id);
-
-    if (!aceite) {
-      return res.status(404).json({ message: 'aceite_plantao não encontrado para exclusão.' });
+    let removido = null;
+    if (!Number.isNaN(Number(req.params.id))) {
+      removido = await AceitaPlantao.findOneAndDelete({ aceite_id: Number(req.params.id) });
+    }
+    if (!removido) {
+      removido = await AceitaPlantao.findByIdAndDelete(req.params.id);
     }
 
-    return res.status(200).json({
-      message: '🗑️ aceite_plantao deletado com sucesso!',
-      data: aceite,
-    });
-  } catch (error) {
-    console.error('Erro ao deletar aceite_plantao:', error);
-    return res.status(500).json({ message: 'Erro interno ao deletar aceite_plantao.' });
+    if (!removido) return res.status(404).json({ message: 'Aceite não encontrado.' });
+
+    await registrarLog(req, 'AceitaPlantao', removido.aceite_id, 'DELETE', removido.toJSON(), null);
+
+    return res.status(200).json({ message: 'Aceite removido com sucesso.' });
+  } catch (err) {
+    console.error('Erro ao deletar aceite de plantão:', err);
+    return res.status(500).json({ message: 'Erro interno ao deletar aceite.' });
   }
-};
+}

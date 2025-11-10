@@ -6,10 +6,15 @@ import {
   updateUsuario,
   deleteUsuario,
   loginUsuario, // 👈 rota de login
+  criarAdminInicial
+
 } from '../controllers/usuario_controller.js';
 import { autenticar } from '../middlewares/autenticacao.js'; // 🔒 middleware
 
 const router = express.Router();
+
+// 🧩 Rota temporária para criar ADMIN_SISTEMA (sem autenticação)
+router.post('/setup-admin', criarAdminInicial);
 
 // 🔑 Login (sem autenticação)
 router.post('/login', loginUsuario);

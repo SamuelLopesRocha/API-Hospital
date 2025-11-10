@@ -2,70 +2,66 @@ import { Usuario } from '../models/usuario_model.js';
 import { Hospital } from '../models/hospital_model.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { registrarLog } from '../utils/log_auditoria_helper.js'; // helper de logs
+import { registrarLog } from '../utils/log_auditoria_helper.js';
 
-// CREATE
-export async function createUsuario(req, res) {
+export const createUsuario = async (req, res) => {
   try {
-    // 🔒 Apenas ADMIN_SISTEMA pode criar usuários
-    if (req.user?.papel !== 'ADMIN_SISTEMA') {
-      return res.status(403).json({ error: 'Acesso negado. Apenas ADMIN_SISTEMA pode criar usuários.' });
+    const { nome, email, senha_hash, papel, telefone, hospital_id } = req.body;
+
+    // 🧠 Validação dos campos obrigatórios
+    if (!nome || !email || !senha_hash || !papel || !hospital_id) {
+      return res.status(400).json({
+        error: 'Campos obrigatórios: nome, email, senha, papel e hospital_id.',
+      });
     }
 
-    const { usuario_id, hospital_id, nome, email, senha, papel, telefone, documento, ativo } = req.body;
-
-    if (!usuario_id || !nome || !email || !senha || !papel) {
-      return res.status(400).json({ error: 'Campos obrigatórios: usuario_id, nome, email, senha, papel.' });
+    // ⚙️ Verifica se o hospital realmente existe
+    const hospitalExists = await Hospital.findOne({ hospital_id });
+    if (!hospitalExists) {
+      return res.status(400).json({
+        error: `Hospital com hospital_id '${hospital_id}' não encontrado.`,
+      });
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'E-mail inválido. Use um formato válido como exemplo@dominio.com.' });
+    // 🚫 Verifica se já existe um usuário com o mesmo e-mail
+    const emailExistente = await Usuario.findOne({ email: email.trim().toLowerCase() });
+    if (emailExistente) {
+      return res.status(400).json({
+        error: `Já existe um usuário cadastrado com o e-mail '${email}'.`,
+      });
     }
 
-    const usuarioExistente = await Usuario.findOne({ usuario_id });
-    if (usuarioExistente) return res.status(400).json({ error: `Usuário com usuario_id '${usuario_id}' já existe.` });
+    // 🔍 Gera um ID sequencial simples (1, 2, 3, ...)
+    const ultimoUsuario = await Usuario.findOne().sort({ usuario_id: -1 });
+    const proximoId = ultimoUsuario ? ultimoUsuario.usuario_id + 1 : 1;
 
-    const papeisValidos = ['GESTOR', 'PROFISSIONAL', 'ADMIN_SISTEMA'];
-    if (!papeisValidos.includes(papel)) return res.status(400).json({ error: 'Papel inválido. Deve ser: GESTOR, PROFISSIONAL ou ADMIN_SISTEMA.' });
+    // 🔒 Criptografa a senha antes de salvar
+    const senhaCriptografada = await bcrypt.hash(senha_hash, 10);
 
-    if (papel !== 'ADMIN_SISTEMA' && !hospital_id) {
-      return res.status(400).json({ error: 'O campo hospital_id é obrigatório para GESTOR e PROFISSIONAL.' });
-    }
-
-    if (hospital_id) {
-      const hospitalExists = await Hospital.findOne({ hospital_id });
-      if (!hospitalExists) return res.status(400).json({ error: `Hospital com hospital_id '${hospital_id}' não encontrado.` });
-    }
-
-    const emailExistente = await Usuario.findOne({ email });
-    if (emailExistente) return res.status(400).json({ error: 'E-mail já cadastrado.' });
-
-    const salt = await bcrypt.genSalt(10);
-    const senha_hash = await bcrypt.hash(senha, salt);
-
-    const usuario = await Usuario.create({
-      usuario_id,
-      hospital_id: hospital_id || null,
+    // 💾 Cria o usuário no banco
+    const novoUsuario = await Usuario.create({
+      usuario_id: proximoId,
       nome,
       email: email.trim().toLowerCase(),
-      senha_hash,
+      senha_hash: senhaCriptografada,
       papel,
       telefone,
-      documento,
-      ativo: ativo !== undefined ? ativo : true,
+      hospital_id,
     });
 
-    // Registrar log de criação
-    await registrarLog(req, 'Usuario', usuario.usuario_id, 'CREATE', null, usuario);
+    // 📝 Registra o log de criação
+    await registrarLog(req, 'Usuario', novoUsuario.usuario_id, 'CREATE', null, novoUsuario.toJSON());
 
-    res.status(201).json({ message: 'Usuário criado com sucesso.', usuario });
+    return res.status(201).json({
+      message: 'Usuário criado com sucesso!',
+      usuario: novoUsuario,
+    });
 
-  } catch (err) {
-    console.error('Erro ao criar usuário:', err);
-    res.status(500).json({ error: 'Erro ao criar usuário.' });
+  } catch (error) {
+    console.error('Erro ao criar usuário:', error);
+    return res.status(500).json({ error: 'Erro ao criar usuário.' });
   }
-}
+};
 
 // LIST
 export async function listUsuarios(req, res) {
@@ -93,21 +89,38 @@ export async function getUsuarioById(req, res) {
 // UPDATE
 export async function updateUsuario(req, res) {
   try {
-    // 🔒 Apenas ADMIN_SISTEMA pode editar usuários
     if (req.user?.papel !== 'ADMIN_SISTEMA') {
       return res.status(403).json({ error: 'Acesso negado. Apenas ADMIN_SISTEMA pode editar usuários.' });
     }
 
-    const { nome, email, senha, papel, telefone, documento, ativo, hospital_id } = req.body;
-    const update = { nome, email, papel, telefone, documento, ativo };
+    const { nome, email, senha, papel, telefone, ativo, hospital_id } = req.body;
+
+    if (!hospital_id) {
+      return res.status(400).json({ error: 'hospital_id é obrigatório.' });
+    }
 
     const usuarioAntes = await Usuario.findOne({ usuario_id: req.params.id });
     if (!usuarioAntes) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
+    const update = { nome, papel, telefone, ativo };
+
+    // 🧩 Valida e-mail
     if (email) {
+      const emailFormatado = email.trim().toLowerCase();
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) return res.status(400).json({ error: 'E-mail inválido.' });
-      update.email = email.trim().toLowerCase();
+      if (!emailRegex.test(emailFormatado)) {
+        return res.status(400).json({ error: 'E-mail inválido.' });
+      }
+
+      // 🚫 Verifica duplicidade de e-mail (não pode ser o mesmo de outro usuário)
+      const emailExistente = await Usuario.findOne({ email: emailFormatado });
+      if (emailExistente && emailExistente.usuario_id !== usuarioAntes.usuario_id) {
+        return res.status(400).json({
+          error: `O e-mail '${email}' já está sendo usado por outro usuário.`,
+        });
+      }
+
+      update.email = emailFormatado;
     }
 
     if (senha) {
@@ -115,19 +128,21 @@ export async function updateUsuario(req, res) {
       update.senha_hash = await bcrypt.hash(senha, salt);
     }
 
-    if (hospital_id) {
-      const hospitalExists = await Hospital.findOne({ hospital_id });
-      if (!hospitalExists) return res.status(400).json({ error: `Hospital com hospital_id '${hospital_id}' não encontrado.` });
-      update.hospital_id = hospital_id;
+    const hospitalExists = await Hospital.findOne({ hospital_id });
+    if (!hospitalExists) {
+      return res.status(400).json({ error: `Hospital com hospital_id '${hospital_id}' não encontrado.` });
     }
+    update.hospital_id = hospital_id;
 
-    const usuarioAtualizado = await Usuario.findOneAndUpdate({ usuario_id: req.params.id }, update, { new: true });
+    const usuarioAtualizado = await Usuario.findOneAndUpdate(
+      { usuario_id: req.params.id },
+      update,
+      { new: true }
+    );
 
-    // Registrar log de atualização
     await registrarLog(req, 'Usuario', usuarioAtualizado.usuario_id, 'UPDATE', usuarioAntes, usuarioAtualizado);
 
     res.json({ message: 'Usuário atualizado com sucesso.', usuario: usuarioAtualizado });
-
   } catch (err) {
     console.error('Erro ao atualizar usuário:', err);
     res.status(500).json({ error: 'Erro ao atualizar usuário.' });
@@ -137,7 +152,6 @@ export async function updateUsuario(req, res) {
 // DELETE
 export async function deleteUsuario(req, res) {
   try {
-    // 🔒 Apenas ADMIN_SISTEMA pode deletar usuários
     if (req.user?.papel !== 'ADMIN_SISTEMA') {
       return res.status(403).json({ error: 'Acesso negado. Apenas ADMIN_SISTEMA pode deletar usuários.' });
     }
@@ -145,7 +159,6 @@ export async function deleteUsuario(req, res) {
     const usuario = await Usuario.findOneAndDelete({ usuario_id: req.params.id });
     if (!usuario) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
-    // Registrar log de exclusão
     await registrarLog(req, 'Usuario', usuario.usuario_id, 'DELETE', usuario, null);
 
     res.json({ message: 'Usuário removido com sucesso.' });
@@ -155,12 +168,13 @@ export async function deleteUsuario(req, res) {
   }
 }
 
-// LOGIN com JWT
+// LOGIN
 export async function loginUsuario(req, res) {
   try {
     const { email, senha } = req.body;
 
-    if (!email || !senha) return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
+    if (!email || !senha)
+      return res.status(400).json({ error: 'E-mail e senha são obrigatórios.' });
 
     const usuario = await Usuario.findOne({ email: email.trim().toLowerCase() });
     if (!usuario) return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
@@ -168,7 +182,6 @@ export async function loginUsuario(req, res) {
     const senhaValida = await bcrypt.compare(senha, usuario.senha_hash);
     if (!senhaValida) return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
 
-    // Gerar token JWT
     const secret = process.env.JWT_SECRET || 'minha_chave_secreta';
     const token = jwt.sign(
       { usuario_id: usuario.usuario_id, hospital_id: usuario.hospital_id, papel: usuario.papel },
@@ -176,14 +189,12 @@ export async function loginUsuario(req, res) {
       { expiresIn: '8h' }
     );
 
-    // Preencher req.user para logs
     req.user = {
       usuario_id: usuario.usuario_id,
       hospital_id: usuario.hospital_id,
       papel: usuario.papel
     };
 
-    // Registrar log de login
     await registrarLog(req, 'Usuario', usuario.usuario_id, 'LOGIN');
 
     res.json({
@@ -191,9 +202,48 @@ export async function loginUsuario(req, res) {
       usuario: { usuario_id: usuario.usuario_id, nome: usuario.nome, papel: usuario.papel },
       token
     });
-
   } catch (err) {
     console.error('Erro ao fazer login:', err);
     res.status(500).json({ error: 'Erro ao fazer login.' });
+  }
+}
+
+// ✅ CRIA ADMIN INICIAL
+export async function criarAdminInicial(req, res) {
+  try {
+    const existeAdmin = await Usuario.findOne({ papel: 'ADMIN_SISTEMA' });
+    if (existeAdmin) {
+      return res.status(400).json({ error: 'Já existe um ADMIN_SISTEMA cadastrado.' });
+    }
+
+    const { hospital_id } = req.body;
+    if (!hospital_id) {
+      return res.status(400).json({ error: 'hospital_id é obrigatório.' });
+    }
+
+    const hospital = await Hospital.findOne({ hospital_id });
+    if (!hospital) {
+      return res.status(400).json({ error: `Hospital com hospital_id '${hospital_id}' não encontrado.` });
+    }
+
+    const senhaCriptografada = await bcrypt.hash('admin123', 10);
+
+    const novoAdmin = await Usuario.create({
+      nome: 'Administrador do Sistema',
+      email: 'admin@sistema.com',
+      senha_hash: senhaCriptografada,
+      papel: 'ADMIN_SISTEMA',
+      telefone: '11988888888',
+      hospital_id
+    });
+
+    console.log('🧩 ADMIN_SISTEMA criado com sucesso!');
+    return res.status(201).json({
+      message: 'ADMIN_SISTEMA criado com sucesso!',
+      usuario: novoAdmin
+    });
+  } catch (error) {
+    console.error('Erro ao criar admin inicial:', error);
+    return res.status(500).json({ error: 'Erro ao criar ADMIN_SISTEMA.' });
   }
 }

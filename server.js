@@ -7,14 +7,12 @@ import dotenv from 'dotenv';
 // Importa as rotas
 import hospitalRouter from './src/routes/hospital_route.js';
 import usuarioRouter from './src/routes/usuario_route.js';
-import profissionalDetalheRouter from './src/routes/profissional_detalhe_route.js';
+import medicoRouter from './src/routes/medico_route.js';
 import plantaoRouter from './src/routes/plantao_route.js'; // ✅ nova rota Plantão
 import aceitaPlantaoRouter from './src/routes/aceita_plantao_route.js'; // ✅ nova rota Aceita_Plantao
 import logAuditoriaRouter from './src/routes/log_auditoria_route.js'; // ✅ nova rota de logs
 
-
 // Configura variáveis de ambiente
-
 dotenv.config();
 
 const app = express();
@@ -45,11 +43,10 @@ connectDB();
 ================================ */
 app.use('/hospitais', hospitalRouter);
 app.use('/usuarios', usuarioRouter);
-app.use('/profissionais_detalhe', profissionalDetalheRouter);
-app.use('/plantoes', plantaoRouter); // ✅ nova rota Plantão
-app.use('/aceita_plantoes', aceitaPlantaoRouter); // ✅ nova rota Aceita_Plantao
-app.use('/logs_auditoria', logAuditoriaRouter); // ✅ registrar rota de logs
-
+app.use('/medicos', medicoRouter);
+app.use('/plantoes', plantaoRouter);
+app.use('/aceita_plantoes', aceitaPlantaoRouter);
+app.use('/logs_auditoria', logAuditoriaRouter);
 
 /* ==============================
    🏠 Rota raiz (teste rápido)

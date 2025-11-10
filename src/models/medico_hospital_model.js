@@ -1,4 +1,4 @@
-from flask import request
+/*from flask import request
 from config import db
 
 jogador_time = db.Table('jogador_time',
@@ -8,3 +8,4 @@ jogador_time = db.Table('jogador_time',
 
 
 vai ligar o id do hospital e do médico nessa tabela
+*/

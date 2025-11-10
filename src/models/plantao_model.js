@@ -1,88 +1,98 @@
 import mongoose from 'mongoose';
 
 const plantaoSchema = new mongoose.Schema({
-    plantao_id: {
-        type: String,
-        required: true,
-        unique: true,
-        trim: true,
-        /*
-         * Identificador único do plantão (chave primária lógica)
-         */
+  plantao_id: {
+    type: Number,
+    unique: true,
+    index: true,
+  },
+
+  hospital_id: {
+    type: String,
+    ref: 'Hospital',
+    required: true,
+    trim: true,
+  },
+
+  gestor_id: {
+    type: String,
+    ref: 'Usuario',
+    required: true,
+    trim: true,
+  },
+
+  titulo: {
+    type: String,
+    required: true,
+    trim: true,
+    minlength: 3,
+    maxlength: 200,
+  },
+
+  descricao: {
+    type: String,
+    trim: true,
+    maxlength: 1000,
+  },
+
+  // 🗓️ NOVOS CAMPOS
+  dia: {
+    type: String,
+    required: [true, 'O campo dia é obrigatório.'],
+    trim: true,
+    validate: {
+      validator: (v) => /^\d{2}\/\d{2}\/\d{4}$/.test(v),
+      message: 'O campo dia deve estar no formato dd/mm/aaaa.',
     },
+  },
 
-    hospital_id: {
-        type: String,
-        ref: 'Hospital',  // referência à collection Hospital
-        required: true,
-        trim: true,
+  horario_inicio: {
+    type: String,
+    required: [true, 'O campo horario_inicio é obrigatório.'],
+    trim: true,
+    validate: {
+      validator: (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v),
+      message: 'O campo horario_inicio deve estar no formato HH:MM (24h).',
     },
+  },
 
-    gestor_id: {
-        type: String,
-        ref: 'Usuario',   // referência à collection Usuario
-        required: true,
-        trim: true,
-        /*
-         * Deve ser um usuário com papel GESTOR
-         */
+  horario_final: {
+    type: String,
+    required: [true, 'O campo horario_final é obrigatório.'],
+    trim: true,
+    validate: {
+      validator: (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v),
+      message: 'O campo horario_final deve estar no formato HH:MM (24h).',
     },
+  },
 
-    titulo: {
-        type: String,
-        required: true,
-        trim: true,
-        minlength: 3,
-        maxlength: 200,
-    },
+  cargo_requerido: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 100,
+  },
 
-    descricao: {
-        type: String,
-        trim: true,
-        maxlength: 1000,
-    },
+  tipo: {
+    type: String,
+    required: true,
+    trim: true,
+    maxlength: 50,
+  },
 
-    data_inicio: {
-        type: Date,
-        required: true,
-    },
+  valor: {
+    type: mongoose.Types.Decimal128,
+    default: 0.0,
+  },
 
-    data_fim: {
-        type: Date,
-        required: true,
-    },
-
-    cargo_requerido: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 100,
-    },
-
-    tipo: {
-        type: String,
-        required: true,
-        trim: true,
-        maxlength: 50,
-        /*
-         * Ex.: plantão, substituição
-         */
-    },
-
-    valor: {
-        type: mongoose.Types.Decimal128,
-        default: 0.0,
-    },
-
-    status: {
-        type: String,
-        enum: ['DISPONIVEL','RESERVADO','CONFIRMADO','CANCELADO','CONCLUIDO'],
-        default: 'DISPONIVEL',
-    }
-
+  status: {
+    type: String,
+    enum: ['DISPONIVEL', 'RESERVADO', 'CONFIRMADO', 'CANCELADO', 'CONCLUIDO'],
+    default: 'DISPONIVEL',
+  },
 }, {
-    timestamps: true,    // adiciona createdAt e updatedAt
-    versionKey: false,   // desativa o __v
+  timestamps: true,
+  versionKey: false,
 });
 
 // Índices úteis
