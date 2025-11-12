@@ -20,7 +20,7 @@ router.post('/setup-admin', criarAdminInicial);
 router.post('/login', loginUsuario);
 
 // 👤 CRUD de usuários
-router.post('/', autenticar, createUsuario);
+router.post('/',autenticar, createUsuario);
 router.get('/', listUsuarios);
 router.get('/:id', getUsuarioById);
 router.put('/:id', autenticar, updateUsuario);
