@@ -11,6 +11,8 @@ import medicoRouter from './src/routes/medico_route.js';
 import plantaoRouter from './src/routes/plantao_route.js'; // ✅ nova rota Plantão
 import aceitaPlantaoRouter from './src/routes/aceita_plantao_route.js'; // ✅ nova rota Aceita_Plantao
 import logAuditoriaRouter from './src/routes/log_auditoria_route.js'; // ✅ nova rota de logs
+import historicoRoute from './src/routes/historico_gestor_route.js';
+import historicoMedicoRoutes from './src/routes/historico_medico_routes.js';
 
 // Configura variáveis de ambiente
 dotenv.config();
@@ -47,6 +49,9 @@ app.use('/medicos', medicoRouter);
 app.use('/plantoes', plantaoRouter);
 app.use('/aceita_plantoes', aceitaPlantaoRouter);
 app.use('/logs_auditoria', logAuditoriaRouter);
+app.use('/historico', historicoRoute);
+app.use('/historico_medico', historicoMedicoRoutes);
+
 
 /* ==============================
    🏠 Rota raiz (teste rápido)

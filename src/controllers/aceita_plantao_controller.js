@@ -1,23 +1,37 @@
 import { Aceita } from '../models/aceita_plantao_model.js';
 import { Plantao } from '../models/plantao_model.js';
+import { Medico } from '../models/medico_model.js';
+import { HistoricoGestor } from '../models/historico_gestor_model.js';
+import { HistoricoMedico } from '../models/historico_medico_model.js'; // 👈 novo import
 
-// Criar aceite
+// Criar aceite e gerar histórico automaticamente
 export const createAceitePlantao = async (req, res) => {
   try {
-    const { plantao_id, status, motivo_rejeicao } = req.body;
+    const { CRM, plantao_id, status, motivo_rejeicao } = req.body;
 
+    // Verifica campos obrigatórios
+    if (!CRM) {
+      return res.status(400).json({ error: 'O campo CRM é obrigatório.' });
+    }
     if (!plantao_id) {
       return res.status(400).json({ error: 'O campo plantao_id é obrigatório.' });
     }
 
-    // Buscar plantão pelo ID informado
+    // Verifica se o médico existe
+    const medico = await Medico.findOne({ CRM });
+    if (!medico) {
+      return res.status(404).json({ error: 'O médico com o CRM informado não existe.' });
+    }
+
+    // Verifica se o plantão existe
     const plantao = await Plantao.findOne({ plantao_id });
     if (!plantao) {
       return res.status(404).json({ error: 'O plantão informado não existe.' });
     }
 
-    // Criar aceite com informações herdadas do plantão
+    // Cria o aceite
     const novoAceite = await Aceita.create({
+      CRM,
       plantao_id,
       status,
       motivo_rejeicao,
@@ -27,8 +41,32 @@ export const createAceitePlantao = async (req, res) => {
       hospital_id: plantao.hospital_id,
     });
 
+    // Cria automaticamente o histórico do GESTOR
+    await HistoricoGestor.create({
+      aceita_plantao_id: novoAceite.aceita_id,
+      plantao_id: plantao.plantao_id,
+      CRM: CRM,
+      dia: plantao.dia,
+      horario_inicio: plantao.horario_inicio,
+      horario_final: plantao.horario_final,
+      status: status || 'DISPONIVEL',
+      observacao: motivo_rejeicao || '',
+    });
+
+    // Cria automaticamente o histórico do MÉDICO
+    await HistoricoMedico.create({
+      aceita_plantao_id: novoAceite.aceita_id,
+      hospital_id: plantao.hospital_id,
+      CRM: CRM,
+      dia: plantao.dia,
+      horario_inicio: plantao.horario_inicio,
+      horario_final: plantao.horario_final,
+      status: status || 'ACEITO',
+      observacao: motivo_rejeicao || '',
+    });
+
     res.status(201).json({
-      message: 'Aceite de plantão criado com sucesso',
+      message: 'Aceite criado com sucesso e registrados os históricos (gestor e médico).',
       data: novoAceite,
     });
 
@@ -39,6 +77,7 @@ export const createAceitePlantao = async (req, res) => {
     });
   }
 };
+
 
 // Listar todos
 export const listAceitePlantoes = async (req, res) => {

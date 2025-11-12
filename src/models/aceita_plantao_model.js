@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Plantao } from '../models/plantao_model.js';
+import { Medico } from '../models/medico_model.js';
 
 // contador sequencial simples
 let contadorAceita = 1;
@@ -11,6 +12,20 @@ const aceitaPlantaoSchema = new mongoose.Schema({
     default: () => contadorAceita++,
   },
 
+  // 🔹 CRM obrigatório (vindo da entidade Medico)
+  CRM: {
+    type: String,
+    required: [true, 'O campo RM é obrigatório.'],
+    validate: {
+      validator: async function (valor) {
+        const existe = await Medico.findOne({ CRM: valor });
+        return !!existe;
+      },
+      message: 'O RM informado não pertence a nenhum médico registrado.',
+    },
+  },
+
+  // 🔹 ID do plantão obrigatório e validado
   plantao_id: {
     type: Number,
     required: [true, 'O campo plantao_id é obrigatório.'],
@@ -23,7 +38,7 @@ const aceitaPlantaoSchema = new mongoose.Schema({
     },
   },
 
-  // esses virão do Plantao automaticamente
+  // 🔹 dados herdados do plantão
   dia: { type: String },
   horario_inicio: { type: String },
   horario_final: { type: String },
