@@ -89,6 +89,31 @@ export const listAceitePlantoes = async (req, res) => {
   }
 };
 
+// Listar aceites por ID de plantão
+export const listAceitesPorPlantao = async (req, res) => {
+  try {
+    const { plantao_id } = req.params;
+
+    if (!plantao_id) {
+      return res.status(400).json({ error: 'O parâmetro plantao_id é obrigatório.' });
+    }
+
+    const aceites = await Aceita.find({ plantao_id });
+
+    if (!aceites || aceites.length === 0) {
+      return res.status(404).json({ message: 'Nenhum aceite encontrado para este plantão.' });
+    }
+
+    res.status(200).json(aceites);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Erro ao buscar aceites por plantão',
+      details: error.message,
+    });
+  }
+};
+
+
 // Buscar por ID
 export const getAceitePlantaoById = async (req, res) => {
   try {
