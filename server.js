@@ -1,5 +1,6 @@
 // node server.js
 
+import cors from 'cors';
 import express from 'express';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -13,12 +14,19 @@ import aceitaPlantaoRouter from './src/routes/aceita_plantao_route.js'; // ✅ n
 import logAuditoriaRouter from './src/routes/log_auditoria_route.js'; // ✅ nova rota de logs
 import historicoRoute from './src/routes/historico_gestor_route.js';
 import historicoMedicoRoutes from './src/routes/historico_medico_routes.js';
+import { corsOptions, enforceHttps, addCorsHeaders } from './src/middlewares/cors_config.js';
 
 // Configura variáveis de ambiente
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(cors(corsOptions));
+app.use(enforceHttps);
+app.use(addCorsHeaders);
+
 
 // Middleware para interpretar JSON
 app.use(express.json());
@@ -39,6 +47,8 @@ async function connectDB() {
   }
 }
 connectDB();
+
+
 
 /* ==============================
    🚏 Rotas principais da API
