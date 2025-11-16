@@ -56,6 +56,10 @@ export const createAceitePlantao = async (req, res) => {
     // Cria automaticamente o histórico do MÉDICO
     await HistoricoMedico.create({
       aceita_plantao_id: novoAceite.aceita_id,
+      
+      // 🔥 ADICIONADO AGORA
+      plantao_id: plantao.plantao_id,
+
       hospital_id: plantao.hospital_id,
       CRM: CRM,
       dia: plantao.dia,

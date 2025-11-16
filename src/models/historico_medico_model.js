@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Aceita } from '../models/aceita_plantao_model.js';
 import { Medico } from '../models/medico_model.js';
+import { Plantao } from '../models/plantao_model.js';
 
 // contador sequencial simples
 let contadorHistoricoMedico = 1;
@@ -26,6 +27,19 @@ const historicoMedicoSchema = new mongoose.Schema({
         return !!existe;
       },
       message: 'O aceite de plantão informado não existe.',
+    },
+  },
+
+  // ✅ NOVO CAMPO ADICIONADO
+  plantao_id: {
+    type: Number,
+    required: [true, 'O campo plantao_id é obrigatório.'],
+    validate: {
+      validator: async function (valor) {
+        const existe = await Plantao.findOne({ plantao_id: valor });
+        return !!existe;
+      },
+      message: 'O plantão informado não existe.',
     },
   },
 

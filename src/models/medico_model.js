@@ -17,6 +17,13 @@ const medicoSchema = new mongoose.Schema({
     unique: true
   },
 
+  // 👇 novo campo solicitado
+  nome: {
+    type: String,
+    required: true,
+    trim: true
+  },
+
   email: {
     type: String,
     required: true,
@@ -41,11 +48,10 @@ const medicoSchema = new mongoose.Schema({
     default: true
   },
 
-  // 👇 novo campo adicionado
   papel: {
     type: String,
     default: 'MEDICO',
-    immutable: true // impede alteração
+    immutable: true
   }
 
 }, {
@@ -63,4 +69,3 @@ medicoSchema.pre('save', async function (next) {
 });
 
 export const Medico = mongoose.model('Medico', medicoSchema);
-// Garante que medico_id seja incremental mesmo após reiniciar o servidor

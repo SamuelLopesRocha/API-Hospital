@@ -10,10 +10,10 @@ export const createMedico = async (req, res) => {
       return res.status(403).json({ error: 'Acesso negado. Apenas ADMIN_SISTEMA pode criar médicos.' });
     }
 
-    const { CRM, email, senha, especialidade, telefone } = req.body;
+    const { CRM, nome, email, senha, especialidade, telefone } = req.body;
 
-    if (!CRM || !senha || !especialidade) {
-      return res.status(400).json({ error: 'Campos obrigatórios: CRM, senha e especialidade.' });
+    if (!CRM || !senha || !especialidade || !nome) {
+      return res.status(400).json({ error: 'Campos obrigatórios: CRM, nome, senha e especialidade.' });
     }
 
     // 🚫 Verifica duplicidade de CRM
@@ -41,6 +41,7 @@ export const createMedico = async (req, res) => {
     const novoMedico = await Medico.create({
       medico_id: proximoId,
       CRM: CRM.trim().toUpperCase(),
+      nome: nome.trim(),
       email: email ? email.trim().toLowerCase() : undefined,
       senha: senhaCriptografada,
       especialidade: especialidade.trim(),
@@ -92,7 +93,7 @@ export async function updateMedico(req, res) {
       return res.status(403).json({ error: 'Acesso negado. Apenas ADMIN_SISTEMA pode atualizar médicos.' });
     }
 
-    const { CRM, email, senha, especialidade, telefone, ativo } = req.body;
+    const { CRM, nome, email, senha, especialidade, telefone, ativo } = req.body;
     const medicoAntes = await Medico.findOne({ medico_id: req.params.id });
 
     if (!medicoAntes) {
@@ -100,6 +101,8 @@ export async function updateMedico(req, res) {
     }
 
     const update = { especialidade, telefone, ativo };
+
+    if (nome) update.nome = nome.trim();
 
     // 🚫 CRM duplicado
     if (CRM) {
@@ -166,8 +169,6 @@ export async function loginMedico(req, res) {
   try {
     const { CRM, senha } = req.body;
 
-    console.log('DEBUG loginMedico - body recebido:', req.body);
-
     const crmRecebido = (CRM ?? '').toString().trim();
     const senhaRecebida = senha ?? '';
 
@@ -215,6 +216,7 @@ export async function loginMedico(req, res) {
       },
       token
     });
+
   } catch (err) {
     console.error('Erro ao fazer login do médico:', err);
     return res.status(500).json({ error: 'Erro ao fazer login.' });
